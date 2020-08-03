@@ -1,21 +1,21 @@
 # R script to clean EPR colonists data for submitting to BCO-DMO
 # includes updating existing BCO-DMO dataset for sample locations
-# Stace Beaulieu 2020-07-31
+# Stace Beaulieu 2020-08-03
 # 
 # Input files:
 #    - Pvent_P&S_135_supptable1_submit.xlsx Lauren Mullineaux's original data EXCEL
 #      (needs 1 correction)
-#    - Pvent_P&S_135_supptable1_submit_AphiaIDs.csv matching of dataProvider_Name to WoRMS Aphia ID
+#    - Pvent_P&S_135_supptable1_submit_AphiaIDs.csv matching of dataProviderName to WoRMS Aphia ID
 #      (needs 1 correction)
 #
 # Output files:
-#    - write mergedwide to csv to represent the original wide format with single row column headers
-#      with 1 dataProvider_Name correction and 1 AphiaID correction 
-#    - Amber will use the merged wide to create a revised abundances.csv long format file;
-#      however, I'd like the long format aligned to Darwin Core for harvest by OBIS.
-#      I don't know if BCO-DMO needs to change any column headers to get these data into ERDDAP.
-#      I don't think OBIS could harvest CF Convention column headers.
-#    - I also update existing BCO-DMO dataset for sample locations
+#    - Pvent_P&S_135_supptable1_submit_merged_wide.csv (for new EPR colonists data): write mergedwide to csv to represent the original wide format with single row column headers
+#      with 1 dataProviderName correction and 1 AphiaID correction
+#    - I also update existing BCO-DMO dataset for sample locations [Colonization sampler log https://www.bco-dmo.org/dataset/733210]
+#
+# Recommendations for long format data table:
+#    - use the merged wide to create a long format file aligned to Darwin Core for harvest by OBIS
+#      see details in comments below
 #
 library(readxl)
 library(readr)
@@ -34,8 +34,8 @@ row3 <- as.character(toppart[3,])
 row4 <- as.numeric(toppart[4,])
 newtoppart <- rbind(row1,row2,row3,row4)
 cnames = apply(newtoppart, 2, paste0, collapse = "-")
-# make leftmost column dataProvider_Name
-cnames[1] <- "dataProvider_Name"
+# make leftmost column dataProviderName
+cnames[1] <- "dataProviderName"
 # confirm unique
 unique(cnames)
 
@@ -43,40 +43,52 @@ unique(cnames)
 # https://readxl.tidyverse.org/articles/articles/multiple-header-rows.html
 widedata <- read_excel("Pvent_P&S_135_supptable1_submit.xlsx", skip = 5, col_names = cnames)
 
-# fix error in 1 dataProvider_Name
+# fix error in 1 dataProviderName
 # correct "polycheates, juv" to "polychaetes, juv" in Pvent_P&S_135_supptable1_submit.xlsx
-
 # it is risky to use the row numbers but I can't figure out right now with mutate and replace
-# how about an if statement
-widedata$dataProvider_Name[48] <- "polychaetes, juv"
+if (widedata$dataProviderName[48] == "polycheates, juv") {widedata$dataProviderName[48] <- "polychaetes, juv"}
 
 # add machine-readable taxonomic identifiers
-# merge on dataProvider_Name and make sure the merged data table still has 68 obs.
+# merge on dataProviderName and make sure the merged data table still has 68 obs.
 # Full join to keep all rows from both data frames
 identifiers <- read_csv("Pvent_P&S_135_supptable1_submit_AphiaIDs.csv")
 
+identifiers <- rename(identifiers, dataProviderName = dataProvider_Name)
+
 # *Laminatubus alvini group may include small Protis hydrothermica
-# ACTUALLY I HAVE TO CORRECT THE TAXON TABLE, KEEP THE ASTERISK
+# I HAVE TO CORRECT THE TAXON TABLE, KEEP THE ASTERISK
 # correct "Laminatubus alvini" to "*Laminatubus alvini"
 # GO UP TO LEVEL THAT INCLUDES BOTH Serpulidae (Family) urn:lsid:marinespecies.org:taxname:988
-identifiers$dataProvider_Name[37] <- "*Laminatubus alvini"
-identifiers$scientificName[37] <- "Serpulidae"
-identifiers$scientificNameID[37] <- "urn:lsid:marinespecies.org:taxname:988"
-identifiers$AphiaID[37] <- "988"
+if (identifiers$dataProviderName[37] == "Laminatubus alvini") {
+  identifiers$dataProviderName[37] <- "*Laminatubus alvini"
+  identifiers$scientificName[37] <- "Serpulidae"
+  identifiers$scientificNameID[37] <- "urn:lsid:marinespecies.org:taxname:988"
+  identifiers$AphiaID[37] <- "988"
+}
 
-mergedwide <- full_join(identifiers, widedata, by = "dataProvider_Name")
-nrow(mergedwide)
+# merge the identifiers with the counts per taxon per sample
+mergedwide <- full_join(identifiers, widedata, by = "dataProviderName")
+nrow(mergedwide) # ensure still 68 rows
 
 # write widedata to csv to represent the original wide format with 2 corrections and single row column headers
+write.csv(mergedwide, "Pvent_P&S_135_supptable1_submit_merged_wide.csv")
 
+# Note I put the output csv into https://www.marinespecies.org/aphia.php?p=match to confirm AphiaIDs
 
-# Amber's code goes to long format and keeps zeros
-# if Amber has the corrected wide file, then she can output the corrected long format,
-# change her column headers Date to monthsSinceEruption,	Zone OK,	ID to colonizationSamplerID, Recovery_T to Recovery_Temperature
-# ask if she can add the OBIS:
-#   eventID from my wide cnames,
-#   occurrenceID concatenate eventID with dataProvider_name,
-#   occurrenceStatus present if > 0 absent if = 0
+# Recommendations for long format data table:
+# 2019-12-19 Amber provided abundances.csv in long format that keeps zeros
+# With the corrected wide file, now can output the corrected long format,
+# change her column headers:
+#   Identification to dataProviderName,
+#   Date to monthsSinceEruption,
+#   Zone OK,
+#   ID to samplerID,
+#   Recovery_T to temperatureRecovered
+#   abundance to individualCount
+# please add the following columns for harvest by OBIS:
+#   eventID from wide cnames,
+#   occurrenceID concatenate eventID with dataProviderName,
+#   occurrenceStatus present if > 0 or absent if = 0
 #   basisOfRecord = PreservedSpecimen
 
 #########################################################
