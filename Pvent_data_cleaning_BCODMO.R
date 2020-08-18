@@ -1,16 +1,19 @@
 # R script to clean EPR colonists data for submitting to BCO-DMO
-# includes updating existing BCO-DMO dataset for sample locations
-# Stace Beaulieu 2020-08-03
+# these new counts data will become the 2nd version of https://www.bco-dmo.org/dataset/733173
+# includes updating colonization sample log to 2nd version of https://www.bco-dmo.org/dataset/733210
+# Stace Beaulieu on 2020-08-18 we realized we needed to change monthsSinceEruption 108 to 106
 # 
 # Input files:
 #    - Pvent_P&S_135_supptable1_submit.xlsx Lauren Mullineaux's original data EXCEL
-#      (needs 1 correction)
+#      (needs 1 spelling correction, also need to change 108 to 106)
 #    - Pvent_P&S_135_supptable1_submit_AphiaIDs.csv matching of dataProviderName to WoRMS Aphia ID
 #      (needs 1 correction)
 #
 # Output files:
 #    - Pvent_P&S_135_supptable1_submit_merged_wide.csv (for new EPR colonists data): write mergedwide to csv to represent the original wide format with single row column headers
 #      with 1 dataProviderName correction and 1 AphiaID correction
+#      Note this file needs the six columns with 108 to be replaced with 106
+#    - Pvent_P&S_135_supptable1_submit_merged_long_106.csv
 #    - I also update existing BCO-DMO dataset for sample locations [Colonization sampler log https://www.bco-dmo.org/dataset/733210]
 #
 # Recommendations for long format data table:
@@ -85,11 +88,29 @@ write.csv(mergedwide, "Pvent_P&S_135_supptable1_submit_merged_wide.csv")
 #   ID to samplerID,
 #   Recovery_T to temperatureRecovered
 #   abundance to individualCount
-# please add the following columns for harvest by OBIS:
+# next can add the following columns for harvest by OBIS:
 #   eventID from wide cnames,
 #   occurrenceID concatenate eventID with dataProviderName,
 #   occurrenceStatus present if > 0 or absent if = 0
 #   basisOfRecord = PreservedSpecimen
+
+wide <- read_csv("c:/Users/sbeaulieu/Desktop/EPR_traits_AT_SEA/Pvent_P&S_135_supptable1_submit_merged_wide.csv")
+# use tidyr pivot_longer
+# replace original column name with individualCount
+# - X1 -dataProviderName -scientificName -scientificNameID -AphiaID
+# -c("X1", "dataProviderName", "scientificName", "scientificNameID", "AphiaID")
+library(tidyr)
+long <- wide %>% pivot_longer(cols = "9-H-2-26.7":"Pre-C-199-2", names_to = "eventID", values_to = "individualCount")
+# use tidyr separate with hyphen to new columns monthsSinceEruption, zone, samplerID, temperatureRecovered
+into = c("monthsSinceEruption", "zone", "samplerID", "temperatureRecovered")
+longplus <- long %>% separate(eventID, into, sep = "-", remove = FALSE)
+# use dplyr if monthsSinceEruption is 108 then change to 106
+library(dplyr)
+correctlongplus <- longplus %>% mutate(monthsSinceEruption = replace(monthsSinceEruption, monthsSinceEruption == "108", "106"))
+# delete extraneous row numbering column
+correctlongplus <- select(correctlongplus,-X1)
+write_csv(correctlongplus, "c:/Users/sbeaulieu/Desktop/EPR_traits_AT_SEA/Pvent_P&S_135_supptable1_submit_merged_long_106.csv")
+
 
 #########################################################
 # update an existing BCO-DMO dataset for sample locations
@@ -115,6 +136,8 @@ locations <- rbind(cruise1998, locations)
 # plus add or rename columns to be able to provide occurrences to OBIS
 
 monthsSinceEruption <- list("Pre",9,11,22,33,NA,96,108,135) # note type list leads to problems with output to csv
+# on 2020-08-18 we realized we needed to change monthsSinceEruption 108 to 106
+# see below
 
 locations <- mutate(locations,
                     monthsSinceEruption = monthsSinceEruption,
@@ -134,3 +157,8 @@ locations <- rename(locations,
 locations$`Location (unitless)`<- "East Pacific Rise 9 50 N hydrothermal vent field"
 
 write_csv(locations, "c:/Users/sbeaulieu/Desktop/EPR_traits_AT_SEA/bcodmo_dataset_733210_update.csv")
+# next we read in that file to replace the 108 with 106 and edit the output filename to provide to BCO-DMO
+# needs readr and dplyr
+incorrect <- read_csv("c:/Users/sbeaulieu/Desktop/EPR_traits_AT_SEA/bcodmo_dataset_733210_update.csv")
+correct <- incorrect %>% mutate(monthsSinceEruption = replace(monthsSinceEruption, monthsSinceEruption == "108", "106"))
+write_csv(correct, "c:/Users/sbeaulieu/Desktop/EPR_traits_AT_SEA/bcodmo_dataset_733210_update_106.csv")
