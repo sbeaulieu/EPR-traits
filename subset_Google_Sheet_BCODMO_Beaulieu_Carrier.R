@@ -1,6 +1,7 @@
 # R script to extract subset from Google Sheet for submission to BCO-DMO
 # Deep-sea larval specimens prepared for Tyler Carrier's microbiome study
 # Stace Beaulieu 2020-10-02
+# 2020-12-29 accounted for additional 4 dwc columns
 
 # Input file is read directly from Google Sheet
 # Output file is comma separated text csv
@@ -17,12 +18,12 @@ gs4_auth() # manual authorization thru web browser
 samples <- drive_get(myurl) # manual authorization thru web browser
 
 gs4_get(samples) 
-specimens <- range_read(samples, col_types = "ccccccnniiiccccccccccccccccc", skip = 3)
+specimens <- range_read(samples, col_types = "cccccccccnniiicccccccccccccccccc", skip = 3)
 # remove last 2 rows
 specimens <- specimens[1:60,]
 
 # exclude the first and last 3 columns
-subsetcolumns <- specimens[,2:25]
+subsetcolumns <- specimens[,2:29]
 # exclude 4 columns Decimal.Minute, Similar Mariana polychaete specimen COI sequence Florence Pradillon, Similar Pescadero specimen BOLD COI, Tyler Carrier 28S results notes
 subsetcolumns <- select(subsetcolumns, -Decimal.Minute, -starts_with("Similar"), -"Tyler Carrier 28S results notes")
 
