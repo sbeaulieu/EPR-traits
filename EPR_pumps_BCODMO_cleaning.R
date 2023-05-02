@@ -1,5 +1,5 @@
 # R script to clean EPR pumps data for submitting to BCO-DMO
-# Stace Beaulieu 2023-04-28
+# Stace Beaulieu 2023-05-02
 # 
 # Input files:
 #    - Pump_near_bottom_compilation.xlsx Susan Mills's compiled data EXCEL
@@ -76,5 +76,39 @@ check1998 <- arrange(check1998,category)
 write.csv(check1998, "confirm_matching_sheet1998.csv")
 # sum the columns in the spreadsheet to aid looking for discrepancies
 # can hide rows when paired columns using same category (or next alphabetically)    
+
+# compare to sheet "2004_Raw"
+
+# grab top part of EXCEL file to concatenate column headers for wide format (which will become eventIDs)
+toppart2004 <- read_excel("Pump_near_bottom_compilation.xlsx", sheet = "2004_Raw", range = "A4:G7", col_names = FALSE)
+# make the column names
+# appears all columns already as character except 1st
+cnames2004 = apply(toppart2004, 2, paste0, collapse = "-")
+cnames2004[1] <- "delete_this"
+cnames2004[2] <- "category"
+# confirm unique
+unique(cnames2004)
+
+sheet2004 <- read_xlsx("Pump_near_bottom_compilation.xlsx", sheet = "2004_Raw", col_names = cnames2004, skip = 10)
+
+# could use dplyr to not select delete_this column
+sheet2004 <- sheet2004[,2:7]
+# but easier to specify column indices for the widedata
+# columns 30 to 34 should be sheet "2004_Raw" (5 columns)
+widedatasubset2004 <- select(widedata,2,30:34)
+
+# exclude the 3 rows with totals in widedata
+widedatasubset2004 <- filter(widedatasubset2004,!str_detect(category,'Total'))
+# using str_detect also deletes rows with category NA
+# no totals just NAs in sheet2004
+sheet2004 <- filter(sheet2004,!is.na(category))
+
+check2004 <- dplyr::full_join(sheet2004, widedatasubset2004, by='category')
+# alphabetize the columns and rows for easier manual inspection
+check2004sort <- check2004 %>%
+  select(order(colnames(check2004))) %>%
+  arrange(category)
+# write to csv for inspection in spreadsheet
+write.csv(check2004sort, "confirm_matching_sheet2004.csv")
 
 # compare to next sheet "xx"
