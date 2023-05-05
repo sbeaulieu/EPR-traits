@@ -1,5 +1,5 @@
 # R script to clean EPR pumps data for submitting to BCO-DMO
-# Stace Beaulieu 2023-05-02
+# Stace Beaulieu 2023-05-05
 # 
 # Input files:
 #    - Pump_near_bottom_compilation.xlsx Susan Mills's compiled data EXCEL
@@ -110,5 +110,42 @@ check2004sort <- check2004 %>%
   arrange(category)
 # write to csv for inspection in spreadsheet
 write.csv(check2004sort, "confirm_matching_sheet2004.csv")
+
+# compare to sheet "LADDER1-3_Raw"
+
+# grab top part of EXCEL file to concatenate column headers for wide format (which will become eventIDs)
+toppartLADDER <- read_excel("Pump_near_bottom_compilation.xlsx", sheet = "LADDER1-3_Raw", range = "A4:z8", col_names = FALSE)
+# make the column names
+# appears all columns already as character except 1st and last 2
+cnamesLADDER = apply(toppartLADDER, 2, paste0, collapse = "-")
+cnamesLADDER[1] <- "delete_this"
+cnamesLADDER[2] <- "category"
+cnamesLADDER[25] <- "delete_this_too"
+cnamesLADDER[26] <- "delete_this_also"
+# confirm unique
+unique(cnamesLADDER)
+
+sheetLADDER <- read_xlsx("Pump_near_bottom_compilation.xlsx", sheet = "LADDER1-3_Raw", col_names = cnamesLADDER, skip = 13)
+
+# could use dplyr to not select delete columns
+sheetLADDER <- dplyr::select(sheetLADDER,-matches("del*"))
+# 39032-L7 K Vent 3mab on was not sorted thus is missing in compilation sheet
+sheetLADDER <- dplyr::select(sheetLADDER,-matches("39032-L7-*"))
+# easier to specify column indices for the widedata
+# columns 35 to 55 should be sheet "LADDER1-3_Raw" (21 columns)
+widedatasubsetLADDER <- select(widedata,2,35:55)
+# exclude the 3 rows with totals in widedata
+widedatasubsetLADDER <- filter(widedatasubsetLADDER,!str_detect(category,'Total'))
+# using str_detect also deletes rows with category NA
+# no totals just NAs in sheetLADDER
+sheetLADDER <- filter(sheetLADDER,!is.na(category))
+
+checkLADDER <- dplyr::full_join(sheetLADDER, widedatasubsetLADDER, by='category')
+# alphabetize the columns and rows for easier manual inspection
+checkLADDERsort <- checkLADDER %>%
+  select(order(colnames(checkLADDER))) %>%
+  arrange(category)
+# write to csv for inspection in spreadsheet
+write.csv(checkLADDERsort, "confirm_matching_sheetLADDER.csv")
 
 # compare to next sheet "xx"
