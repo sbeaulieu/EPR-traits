@@ -1,5 +1,5 @@
 # R script to clean EPR pumps data for submitting to BCO-DMO
-# Stace Beaulieu 2023-05-05
+# Stace Beaulieu 2023-05-15
 # 
 # Input files:
 #    - Pump_near_bottom_compilation.xlsx Susan Mills's compiled data EXCEL
@@ -147,5 +147,39 @@ checkLADDERsort <- checkLADDER %>%
   arrange(category)
 # write to csv for inspection in spreadsheet
 write.csv(checkLADDERsort, "confirm_matching_sheetLADDER.csv")
+
+# compare to sheet "2019_Raw"
+
+# grab top part of EXCEL file to concatenate column headers for wide format (which will become eventIDs)
+toppart2019 <- read_excel("Pump_near_bottom_compilation.xlsx", sheet = "2019_Raw", range = "A4:h8", col_names = FALSE)
+# make the column names
+# appears all columns already as character except 1st
+cnames2019 = apply(toppart2019, 2, paste0, collapse = "-")
+cnames2019[1] <- "delete_this"
+cnames2019[2] <- "category"
+# confirm unique
+unique(cnames2019)
+
+sheet2019 <- read_xlsx("Pump_near_bottom_compilation.xlsx", sheet = "2019_Raw", col_names = cnames2019, skip = 13)
+
+# could use dplyr to not select delete_this column
+sheet2019 <- sheet2019[,2:8]
+# but easier to specify column indices for the widedata
+# columns 56 to 61 should be sheet "2019_Raw" (6 columns)
+widedatasubset2019 <- select(widedata,2,56:61)
+
+# exclude the 3 rows with totals in widedata
+widedatasubset2019 <- filter(widedatasubset2019,!str_detect(category,'Total'))
+# using str_detect also deletes rows with category NA
+# no totals just NAs in sheet2019
+sheet2019 <- filter(sheet2019,!is.na(category))
+
+check2019 <- dplyr::full_join(sheet2019, widedatasubset2019, by='category')
+# alphabetize the columns and rows for easier manual inspection
+check2019sort <- check2019 %>%
+  select(order(colnames(check2019))) %>%
+  arrange(category)
+# write to csv for inspection in spreadsheet
+write.csv(check2019sort, "confirm_matching_sheet2019.csv")
 
 # compare to next sheet "xx"
