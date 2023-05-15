@@ -40,7 +40,6 @@ widedata <- read_xlsx("Pump_near_bottom_compilation.xlsx", sheet = "Composite_Ac
 # columns 56 to 61 should be sheet "2019_Raw" (6 columns)
 # columns 62 to 67 should be sheet "2021_Raw" (6 columns)
 
-
 # compare to sheet "1998-2000_Raw"
 
 # grab top part of EXCEL file to concatenate column headers for wide format (which will become eventIDs)
@@ -182,4 +181,37 @@ check2019sort <- check2019 %>%
 # write to csv for inspection in spreadsheet
 write.csv(check2019sort, "confirm_matching_sheet2019.csv")
 
-# compare to next sheet "xx"
+# compare to sheet "2021_Raw"
+
+# grab top part of EXCEL file to concatenate column headers for wide format (which will become eventIDs)
+toppart2021 <- read_excel("Pump_near_bottom_compilation.xlsx", sheet = "2021_Raw", range = "A4:h8", col_names = FALSE)
+# make the column names
+# appears all columns already as character except 1st
+cnames2021 = apply(toppart2021, 2, paste0, collapse = "-")
+cnames2021[1] <- "delete_this"
+cnames2021[2] <- "category"
+# confirm unique
+unique(cnames2021)
+
+sheet2021 <- read_xlsx("Pump_near_bottom_compilation.xlsx", sheet = "2021_Raw", col_names = cnames2021, skip = 13)
+
+# could use dplyr to not select delete_this column
+sheet2021 <- sheet2021[,2:8]
+# but easier to specify column indices for the widedata
+# columns 62 to 67 should be sheet "2021_Raw" (6 columns)
+widedatasubset2021 <- select(widedata,2,62:67)
+
+# exclude the 3 rows with totals in widedata
+widedatasubset2021 <- filter(widedatasubset2021,!str_detect(category,'Total'))
+# using str_detect also deletes rows with category NA
+# no totals just NAs in sheet2021
+sheet2021 <- filter(sheet2021,!is.na(category))
+
+check2021 <- dplyr::full_join(sheet2021, widedatasubset2021, by='category')
+# alphabetize the columns and rows for easier manual inspection
+check2021sort <- check2021 %>%
+  select(order(colnames(check2021))) %>%
+  arrange(category)
+# write to csv for inspection in spreadsheet
+write.csv(check2021sort, "confirm_matching_sheet2021.csv")
+
