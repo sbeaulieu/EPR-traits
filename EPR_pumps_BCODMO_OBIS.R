@@ -1,6 +1,6 @@
 #EPR_pumps_BCODMO_OBIS
 #Stace Beaulieu
-#2025-04-08
+#2025-04-09
 
 # R script to standardize EPR pumps Composite data to Darwin Core
 # and output tables for BCO-DMO (occurrence table with occurrences left and events right)
@@ -21,6 +21,9 @@ library(tidyr)
 
 counts_input <- readxl::read_xlsx("Pump_near_bottom_compilation_WORKING_COPY_20250407.xlsx", sheet = "Composite_Actual_Numbers", skip = 1)
 counts_input <- select(counts_input,-"...1")
+
+taxa_input <- readxl::read_xlsx("Pump_near_bottom_compilation_WORKING_COPY_20250407.xlsx", sheet = "taxa")
+
 
 # initiate event table with top rows Composite sheet
 # ultimately for BCO-DMO join separately to counts_long using eventID
@@ -47,14 +50,22 @@ event_dwc <- event_dwc %>%
 # initiate occurrence table
 counts <- slice(counts_input, 10:n())
 colnames(counts)[1] <- "verbatimIdentification"
+# need to exclude rows with totals or NAs
+counts <- counts %>%
+  filter(!is.na(verbatimIdentification)) %>%
+  filter(!verbatimIdentification %in% c('Totals','Totals excluding unknown 9660'))
 
 # add column with row counter to be used as suffix for occurrenceID
 counts <- counts %>% mutate(vIrow = row_number())
 
+# join with WoRMS taxa
+taxa <- select(taxa_input, verbatimIdentification, scientificName, scientificNameID, kingdom) # add taxonRank
+counts_taxa <- full_join(counts, taxa)
+
 #Pivoting Longer
-counts_long <- counts %>%
+counts_long <- counts_taxa %>%
   pivot_longer(
-    cols = 2:66, # new column vIrow was added to far right
+    cols = 2:66, # new column vIrow was added to far right then taxa joined far right
     names_to = "eventID",
     values_to = "individualCount"
   )
