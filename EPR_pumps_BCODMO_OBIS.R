@@ -1,6 +1,6 @@
 #EPR_pumps_BCODMO_OBIS
 #Stace Beaulieu
-#2025-04-09
+#2025-04-10
 
 # R script to standardize EPR pumps Composite data to Darwin Core
 # and output tables for BCO-DMO (occurrence table with occurrences left and events right)
@@ -24,6 +24,9 @@ counts_input <- select(counts_input,-"...1")
 
 taxa_input <- readxl::read_xlsx("Pump_near_bottom_compilation_WORKING_COPY_20250407.xlsx", sheet = "taxa")
 
+vent_input <- readxl::read_xlsx("Pump_near_bottom_compilation_WORKING_COPY_20250407.xlsx", sheet = "vent_site_locations", skip = 1)
+vent_input <- vent_input[,1:4] # keep only leftmost columns
+vent_input <- dplyr::slice_head(vent_input, n = 14) # keep only topmost rows
 
 # initiate event table with top rows Composite sheet
 # ultimately for BCO-DMO join separately to counts_long using eventID
@@ -42,6 +45,7 @@ event_dwc$"Distance off axis in meters" <- as.integer(event_dwc$"Distance off ax
 event_dwc$"Distance off site in meters" <- as.integer(event_dwc$"Distance off site in meters")
 event_dwc <- event_dwc %>%
   unite(locationRemarks, c("Distance off axis in meters", "Distance off site in meters", "Direction off axis or off site"), remove = FALSE)
+event_dwc$eventDate <- as.Date(event_dwc$verbatimEventDate, tryFormats = "%d/%b/%Y")
 
 # not DwC
 # "Height above bottom in meters"
