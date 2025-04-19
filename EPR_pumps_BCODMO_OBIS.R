@@ -16,6 +16,7 @@ library(readxl)
 library(dplyr)
 library(data.table)
 library(tidyr)
+library(geosphere)
 
 #Load datasheets downloaded from Google Drive
 
@@ -67,6 +68,41 @@ event_dwc$eventDate <- as.Date(event_dwc$verbatimEventDate, tryFormats = "%d/%b/
 # the join is by named vent to position and depth so will need to replace values
 # if not NA in "Direction off axis or off site"
 event_dwc_vent <- left_join(event_dwc, vent_input, by = "locality")
+
+# in order to use destPoint function from geosphere need bearing in degrees
+df <- dplyr::tribble(
+  ~cardinal_direction, ~degrees,
+  "N",                 0,                    
+  "NNE",               22.5,                   
+  "NE",                45,                     
+  "ENE",               67.5,                   
+  "E",                 90,                     
+  "ESE",               112.5,                  
+  "SE",                135,                    
+  "SSE",               157.5,                  
+  "S",                 180,                    
+  "SSW",               202.5,                  
+  "SW",                225,                    
+  "WSW",               247.5,                  
+  "W",                 270,                    
+  "WNW",               292.5,                  
+  "NW",                315,                    
+  "NNW",               337.5
+)
+
+event_dwc_vent <- rename(event_dwc_vent, "cardinal_direction" = "Direction off axis or off site")
+event_dwc_vent <- left_join(event_dwc_vent, df, by = "cardinal_direction")
+event_dwc_vent$distance_off <- ifelse(event_dwc_vent$`Distance off axis in meters` > 9, event_dwc_vent$`Distance off axis in meters`, event_dwc_vent$`Distance off site in meters`)
+
+p = cbind(event_dwc_vent$decimalLongitude, event_dwc_vent$decimalLatitude)
+b = event_dwc_vent$degrees
+d = event_dwc_vent$distance_off
+result = destPoint(p, b, d, a=6378137, f=1/298.257223563)
+# returns NAs and NaNs
+lon_lat_new <- as.data.frame(result)
+# column bind then export csv to check in QIS
+event_lon_lat_new <- bind_cols(event_dwc_vent, lon_lat_new)
+# write.csv(event_lon_lat_new, 'event_lon_lat_new.csv') # confirm use of geosphere destPoint
 
 # initiate occurrence table
 counts <- slice(counts_input, 10:n())
