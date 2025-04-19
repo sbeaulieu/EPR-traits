@@ -61,6 +61,7 @@ event_dwc$"Distance off site in meters" <- as.integer(event_dwc$"Distance off si
 event_dwc <- event_dwc %>%
   unite(locationRemarks, c("Height above bottom in meters", "Distance off axis in meters", "Distance off site in meters", "Direction off axis or off site"), remove = FALSE)
 event_dwc$eventDate <- as.Date(event_dwc$verbatimEventDate, tryFormats = "%d/%b/%Y")
+event_dwc$`Height above bottom in meters` <- as.integer(event_dwc$`Height above bottom in meters`)
 
 # not DwC
 # "Cruise number"
@@ -68,6 +69,14 @@ event_dwc$eventDate <- as.Date(event_dwc$verbatimEventDate, tryFormats = "%d/%b/
 # the join is by named vent to position and depth so will need to replace values
 # if not NA in "Direction off axis or off site"
 event_dwc_vent <- left_join(event_dwc, vent_input, by = "locality")
+
+# calculate DwC min max depth
+event_dwc_vent$minimumDepthInMeters <- event_dwc_vent$Bottom_Depth - event_dwc_vent$`Height above bottom in meters` - 5
+event_dwc_vent$maximumDepthInMeters <- event_dwc_vent$Bottom_Depth - event_dwc_vent$`Height above bottom in meters` + 5
+# for those off site will need manual or hard code for depth
+# temporary fill with NA
+event_dwc_vent$minimumDepthInMeters[!is.na(event_dwc_vent$`Direction off axis or off site`)] <- NA
+event_dwc_vent$maximumDepthInMeters[!is.na(event_dwc_vent$`Direction off axis or off site`)] <- NA
 
 # in order to use destPoint function from geosphere need bearing in degrees
 df <- dplyr::tribble(
@@ -103,6 +112,7 @@ lon_lat_new <- as.data.frame(result)
 # column bind then export csv to check in QIS
 event_lon_lat_new <- bind_cols(event_dwc_vent, lon_lat_new)
 # write.csv(event_lon_lat_new, 'event_lon_lat_new.csv') # confirm use of geosphere destPoint
+
 
 # initiate occurrence table
 counts <- slice(counts_input, 10:n())
