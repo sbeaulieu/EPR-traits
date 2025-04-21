@@ -1,14 +1,11 @@
-# R script to clean EPR pumps data for submitting to BCO-DMO
-# Stace Beaulieu 2023-05-15
+# R script to check EPR pumps data compilation for submitting to BCO-DMO
+# Stace Beaulieu 2025-04-21
 # 
 # Input files:
 #    - Pump_near_bottom_compilation.xlsx Susan Mills's compiled data EXCEL
-#    - [ultimately this will also include our lookup table for WorMS taxon matching]
 #
 # The script will:
 #    - confirm using sheet "Composite_Actual_Numbers"
-#    - create wide occurrence table with unique column headers as eventID's for "Composite_Actual_Numbers"
-#    - create a separate event table for sampling metadata
 #
 library(readxl) # for input xls file
 # library(readr) # for input WoRMS lookup csv file if don't use sheet "Categories"
@@ -19,7 +16,7 @@ setwd("C:/Users/sbeaulieu/Downloads") # xls file will be local (not copied to gi
 # grab top part of EXCEL file to concatenate column headers for wide format (which will become eventIDs)
 # toppart <- read_excel("Pump_near_bottom_compilation.xlsx", sheet = "Composite_Actual_Numbers", range = "A3:BO9", col_names = FALSE)
 # just start with Date Deployed row for comparing sheets
-toppart <- read_excel("Pump_near_bottom_compilation.xlsx", sheet = "Composite_Actual_Numbers", range = "A4:BO9", col_names = FALSE)
+toppart <- read_excel("Pump_near_bottom_compilation_2025_03_25_20250326.xlsx", sheet = "Composite_Actual_Numbers", range = "A4:CE9", col_names = FALSE)
 
 # make the column names
 # appears all columns already as character except 1st
@@ -31,14 +28,17 @@ unique(cnames)
 
 # grab wide compiled data from EXCEL file
 # read in except first 10 rows
-widedata <- read_xlsx("Pump_near_bottom_compilation.xlsx", sheet = "Composite_Actual_Numbers", col_names = cnames, skip = 10)
+widedata <- read_xlsx("Pump_near_bottom_compilation_2025_03_25_20250326.xlsx", sheet = "Composite_Actual_Numbers", col_names = cnames, skip = 10)
 
-# counts are in columns 3 to 67
+# counts are in columns 3 to 83
 # columns 3 to 29 should be sheet "1998-2000_Raw" (27 columns)
 # columns 30 to 34 should be sheet "2004_Raw" (5 columns)
 # columns 35 to 55 should be sheet "LADDER1-3_Raw" (21 columns)
 # columns 56 to 61 should be sheet "2019_Raw" (6 columns)
 # columns 62 to 67 should be sheet "2021_Raw" (6 columns)
+# columns 68 to 73 sheet "2022_50-06" (6 columns)
+# columns 74 to 80 sheet "2024_50-20" (7 columns)
+# no sheet for AT50-33 in 2025
 
 # compare to sheet "1998-2000_Raw"
 
@@ -72,7 +72,7 @@ check1998 <- dplyr::full_join(sheet1998, widedatasubset1998, by='category')
 check1998 <- select(check1998,order(colnames(check1998)))
 check1998 <- arrange(check1998,category)
 # write to csv for inspection in spreadsheet
-write.csv(check1998, "confirm_matching_sheet1998.csv")
+#write.csv(check1998, "confirm_matching_sheet1998.csv")
 # sum the columns in the spreadsheet to aid looking for discrepancies
 # can hide rows when paired columns using same category (or next alphabetically)    
 
@@ -108,7 +108,7 @@ check2004sort <- check2004 %>%
   select(order(colnames(check2004))) %>%
   arrange(category)
 # write to csv for inspection in spreadsheet
-write.csv(check2004sort, "confirm_matching_sheet2004.csv")
+#write.csv(check2004sort, "confirm_matching_sheet2004.csv")
 
 # compare to sheet "LADDER1-3_Raw"
 
@@ -145,7 +145,7 @@ checkLADDERsort <- checkLADDER %>%
   select(order(colnames(checkLADDER))) %>%
   arrange(category)
 # write to csv for inspection in spreadsheet
-write.csv(checkLADDERsort, "confirm_matching_sheetLADDER.csv")
+#write.csv(checkLADDERsort, "confirm_matching_sheetLADDER.csv")
 
 # compare to sheet "2019_Raw"
 
@@ -213,5 +213,39 @@ check2021sort <- check2021 %>%
   select(order(colnames(check2021))) %>%
   arrange(category)
 # write to csv for inspection in spreadsheet
-write.csv(check2021sort, "confirm_matching_sheet2021.csv")
+#write.csv(check2021sort, "confirm_matching_sheet2021.csv")
+
+# compare to sheet "2022_50-06"
+
+# grab top part of EXCEL file to concatenate column headers for wide format
+toppart2022 <- read_excel("Pump_near_bottom_compilation_2025_03_25_20250326.xlsx", sheet = "2022_50-06", range = "a3:h7", col_names = FALSE)
+# make the column names
+# appears all columns already as character except 1st
+cnames2022 = apply(toppart2022, 2, paste0, collapse = "-")
+cnames2022[1] <- "category" # Validated Taxa left-most in 2022 sheet note there are doubles so affects the join
+cnames2022[2] <- "delete_this"
+# confirm unique
+unique(cnames2022)
+
+sheet2022 <- read_xlsx("Pump_near_bottom_compilation_2025_03_25_20250326.xlsx", sheet = "2022_50-06", col_names = cnames2022, skip = 12)
+
+# could use dplyr to not select delete_this column
+sheet2022 <- select(sheet2022, -delete_this)
+# but easier to specify column indices for the widedata
+# widedata columns 68 to 73 sheet "2022_50-06" (6 columns)
+widedatasubset2022 <- select(widedata,2,68:73)
+
+# exclude the 3 rows with totals in widedata
+widedatasubset2022 <- filter(widedatasubset2022,!str_detect(category,'Total'))
+# using str_detect also deletes rows with category NA
+# no totals or NAs in sheet2022 but just in case
+sheet2022 <- filter(sheet2022,!is.na(category))
+
+check2022 <- dplyr::full_join(widedatasubset2022, sheet2022, by='category') # put widedata composite left
+# alphabetize the columns for easier manual inspection
+check2022sort <- check2022 %>%
+  select(order(colnames(check2022)))
+# write to csv for inspection in spreadsheet
+#write.csv(check2022sort, "confirm_matching_sheet2022.csv")
+
 
