@@ -1,11 +1,11 @@
 # R script to check EPR pumps data compilation for submitting to BCO-DMO
-# Stace Beaulieu 2025-04-21
+# Stace Beaulieu 2025-04-22
 # 
 # Input files:
 #    - Pump_near_bottom_compilation.xlsx Susan Mills's compiled data EXCEL
 #
 # The script will:
-#    - confirm using sheet "Composite_Actual_Numbers"
+#    - confirm sheet "Composite_Actual_Numbers" against raw sheet per cruise
 #
 library(readxl) # for input xls file
 # library(readr) # for input WoRMS lookup csv file if don't use sheet "Categories"
@@ -179,7 +179,7 @@ check2019sort <- check2019 %>%
   select(order(colnames(check2019))) %>%
   arrange(category)
 # write to csv for inspection in spreadsheet
-write.csv(check2019sort, "confirm_matching_sheet2019.csv")
+#write.csv(check2019sort, "confirm_matching_sheet2019.csv")
 
 # compare to sheet "2021_Raw"
 
@@ -249,3 +249,35 @@ check2022sort <- check2022 %>%
 #write.csv(check2022sort, "confirm_matching_sheet2022.csv")
 
 
+# compare to sheet "2024_50-20"
+
+# grab top part of EXCEL file to concatenate column headers for wide format
+toppart2024 <- read_excel("Pump_near_bottom_compilation_2025_03_25_20250326.xlsx", sheet = "2024_50-20", range = "a3:i7", col_names = FALSE)
+# make the column names
+# appears all columns already as character except 1st
+cnames2024 = apply(toppart2024, 2, paste0, collapse = "-")
+cnames2024[1] <- "category" # Validated Taxa left-most in 2024 sheet note there are doubles so affects the join
+cnames2024[2] <- "delete_this"
+# confirm unique
+unique(cnames2024)
+
+sheet2024 <- read_xlsx("Pump_near_bottom_compilation_2025_03_25_20250326.xlsx", sheet = "2024_50-20", col_names = cnames2024, skip = 12)
+
+# could use dplyr to not select delete_this column
+sheet2024 <- select(sheet2024, -delete_this)
+# but easier to specify column indices for the widedata
+# widedata columns 74 to 80 sheet "2024_50-20" (7 columns)
+widedatasubset2024 <- select(widedata,2,74:80)
+
+# exclude the 3 rows with totals in widedata
+widedatasubset2024 <- filter(widedatasubset2024,!str_detect(category,'Total'))
+# using str_detect also deletes rows with category NA
+# no totals or NAs in sheet2024 but just in case
+sheet2024 <- filter(sheet2024,!is.na(category))
+
+check2024 <- dplyr::full_join(widedatasubset2024, sheet2024, by='category') # put widedata composite left
+# alphabetize the columns for easier manual inspection
+check2024sort <- check2024 %>%
+  select(order(colnames(check2024)))
+# write to csv for inspection in spreadsheet
+#write.csv(check2024sort, "confirm_matching_sheet2024.csv")
