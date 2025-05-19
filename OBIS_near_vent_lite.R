@@ -16,6 +16,7 @@ dlonEPR950 <- -104.2900
 km1 <- 0.009
 
 # assigning variables in the POLYGON, use 2km
+# note this is approximate for longitude near equator
 E <- dlonEPR950+km1*2
 W <- dlonEPR950-km1*2
 N <- dlatEPR950+km1*2
