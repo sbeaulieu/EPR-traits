@@ -1,6 +1,6 @@
 #EPR_pumps_BCODMO_OBIS
 #Stace Beaulieu
-#2025-07-21
+#2025-07-27
 
 # R script to standardize EPR pumps Composite data to Darwin Core (DwC)
 # and output tables for BCO-DMO (single table with occurrence extension left and event Core right)
@@ -14,7 +14,7 @@ setwd("/Users/sbeaulieu/Downloads")
 
 library(readxl)
 library(dplyr)
-library(data.table)
+library(data.table) # for transpose
 library(tidyr)
 library(geosphere)
 library(anytime) # for eventDate
@@ -22,14 +22,14 @@ library(anytime) # for eventDate
 #Load datasheets downloaded from Google Drive
 
 # first manually confirm counts in WORKING_COPY match Susan's most recent version
-# note need to fill blanks with zeroes for recent samples
-counts_input <- readxl::read_xlsx("Pump_near_bottom_compilation_WORKING_COPY_20250721.xlsx", sheet = "Composite_Actual_Numbers", skip = 1)
+# note filled blanks with zeroes for recent samples
+counts_input <- readxl::read_xlsx("Pump_near_bottom_compilation_WORKING_COPY_20250727.xlsx", sheet = "Composite_Actual_Numbers", skip = 1)
 counts_input <- select(counts_input,-"...1")
 # consider stripping off underscore eventID here
 
-taxa_input <- readxl::read_xlsx("Pump_near_bottom_compilation_WORKING_COPY_20250721.xlsx", sheet = "taxa")
+taxa_input <- readxl::read_xlsx("Pump_near_bottom_compilation_WORKING_COPY_20250727.xlsx", sheet = "taxa")
 
-vent_input <- readxl::read_xlsx("Pump_near_bottom_compilation_WORKING_COPY_20250721.xlsx", sheet = "vent_site_locations", skip = 1, col_types = "text")
+vent_input <- readxl::read_xlsx("Pump_near_bottom_compilation_WORKING_COPY_20250727.xlsx", sheet = "vent_site_locations", skip = 1, col_types = "text")
 vent_input <- vent_input[,1:4] # keep only leftmost columns
 vent_input <- dplyr::slice_head(vent_input, n = 15) # keep only topmost rows
 # needed to read in as text to be able to provide lat lon to 5 decimal places
@@ -45,14 +45,19 @@ vent_input$Bottom_Depth <- as.integer(vent_input$Bottom_Depth)
 
 # will also need to read in tab depth_when_Direction_off
 # for those locations that were calculated below
+depth_when_off <- readxl::read_xlsx("Pump_near_bottom_compilation_WORKING_COPY_20250727.xlsx", sheet = "depth_when_Direction_off", skip = 3)
+
 
 # initiate event table with top rows Composite sheet
 # ultimately for BCO-DMO join separately to counts_long using eventID
 event_metadata <- dplyr::slice_head(counts_input,n = 8)
+# strip off 2 leftmost columns
+event_metadata <- event_metadata[, -c(1, 2)] 
 
 # transpose for event table
 event_t <- data.table::transpose(event_metadata, keep.names = "eventID", make.names="All near bottom, including off-axis")
 # strip off the trailing underscore for some eventID
+# might wait to strip this until after replace with depth_when_off
 event_t$eventID <- sub("_$", "", event_t$eventID)
 
 
@@ -113,16 +118,21 @@ d = event_dwc_vent$distance_off
 result = destPoint(p, b, d, a=6378137, f=1/298.257223563)
 # returns NAs and NaNs
 lon_lat_new <- as.data.frame(result)
-# column bind then export csv to check in QIS
+# column bind then export csv to check in QGIS
 event_lon_lat_new <- bind_cols(event_dwc_vent, lon_lat_new)
 # write.csv(event_lon_lat_new, 'event_lon_lat_new.csv') # confirm use of geosphere destPoint
 
-# next need to replace position and depth columns
-# for the when_Direction_off
+# next when there is a value in cardinal_direction
+# need to replace position with lon_lat_new (plus a few positions from cruise report)
+# and replace depth columns with depth_when_off 
+
+
 
 # initiate occurrence table
 counts <- slice(counts_input, 10:n())
-colnames(counts)[1] <- "verbatimIdentification"
+# strip off 2nd leftmost column
+counts <- counts[, -c(2)] 
+colnames(counts)[2] <- "verbatimIdentification"
 # need to exclude rows with totals or NAs
 counts <- counts %>%
   filter(!is.na(verbatimIdentification)) %>%
@@ -139,7 +149,7 @@ counts_taxa <- full_join(counts, taxa)
 #Pivoting Longer
 counts_long <- counts_taxa %>%
   pivot_longer(
-    cols = 2:82, # new column vIrow was added to far right then taxa joined far right
+    cols = 3:83, # new column vIrow was added to far right then taxa joined far right
     names_to = "eventID",
     values_to = "individualCount"
   )
@@ -170,3 +180,4 @@ col_order <- c("verbatimIdentification", "scientificName", "scientificNameID",
 occurrence <- occurrence_dwc[, col_order]
 # manually confirm total counts for each verbatimIdentification against Composite_Actual_Numbers sheet
 aggregate(occurrence$individualCount, by=list(verbatimIdentification=occurrence$verbatimIdentification), FUN=sum)
+sum(occurrence$individualCount)
