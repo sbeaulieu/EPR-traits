@@ -1,6 +1,6 @@
 #EPR_pumps_BCODMO_OBIS
 #Stace Beaulieu
-#2025-07-27
+#2025-07-28
 
 # R script to standardize EPR pumps Composite data to Darwin Core (DwC)
 # and output tables for BCO-DMO (single table with occurrence extension left and event Core right)
@@ -23,13 +23,13 @@ library(anytime) # for eventDate
 
 # first manually confirm counts in WORKING_COPY match Susan's most recent version
 # note filled blanks with zeroes for recent samples
-counts_input <- readxl::read_xlsx("Pump_near_bottom_compilation_WORKING_COPY_20250727.xlsx", sheet = "Composite_Actual_Numbers", skip = 1)
+counts_input <- readxl::read_xlsx("Pump_near_bottom_compilation_WORKING_COPY_20250728.xlsx", sheet = "Composite_Actual_Numbers", skip = 1)
 counts_input <- select(counts_input,-"...1")
 # consider stripping off underscore eventID here
 
-taxa_input <- readxl::read_xlsx("Pump_near_bottom_compilation_WORKING_COPY_20250727.xlsx", sheet = "taxa")
+taxa_input <- readxl::read_xlsx("Pump_near_bottom_compilation_WORKING_COPY_20250728.xlsx", sheet = "taxa")
 
-vent_input <- readxl::read_xlsx("Pump_near_bottom_compilation_WORKING_COPY_20250727.xlsx", sheet = "vent_site_locations", skip = 1, col_types = "text")
+vent_input <- readxl::read_xlsx("Pump_near_bottom_compilation_WORKING_COPY_20250728.xlsx", sheet = "vent_site_locations", skip = 1, col_types = "text")
 vent_input <- vent_input[,1:4] # keep only leftmost columns
 vent_input <- dplyr::slice_head(vent_input, n = 15) # keep only topmost rows
 # needed to read in as text to be able to provide lat lon to 5 decimal places
@@ -45,8 +45,9 @@ vent_input$Bottom_Depth <- as.integer(vent_input$Bottom_Depth)
 
 # will also need to read in tab depth_when_Direction_off
 # for those locations that were calculated below
-depth_when_off <- readxl::read_xlsx("Pump_near_bottom_compilation_WORKING_COPY_20250727.xlsx", sheet = "depth_when_Direction_off", skip = 3)
-
+depth_when_off <- readxl::read_xlsx("Pump_near_bottom_compilation_WORKING_COPY_20250728.xlsx", sheet = "depth_when_Direction_off", skip = 3)
+depth_when_off$lon_cruise_report <- round(depth_when_off$lon_cruise_report, 5)
+depth_when_off$lat_cruise_report <- round(depth_when_off$lat_cruise_report, 5)
 
 # initiate event table with top rows Composite sheet
 # ultimately for BCO-DMO join separately to counts_long using eventID
@@ -79,13 +80,13 @@ event_dwc$`Height above bottom in meters` <- as.integer(event_dwc$`Height above 
 # if not NA in "Direction off axis or off site"
 event_dwc_vent <- left_join(event_dwc, vent_input, by = "locality")
 
-# calculate DwC min max depth
-event_dwc_vent$minimumDepthInMeters <- event_dwc_vent$Bottom_Depth - event_dwc_vent$`Height above bottom in meters` - 5
-event_dwc_vent$maximumDepthInMeters <- event_dwc_vent$Bottom_Depth - event_dwc_vent$`Height above bottom in meters` + 5
-# for those off site will need tab depth_when_Direction_off for depth
-# temporary fill with NA
-event_dwc_vent$minimumDepthInMeters[!is.na(event_dwc_vent$`Direction off axis or off site`)] <- NA
-event_dwc_vent$maximumDepthInMeters[!is.na(event_dwc_vent$`Direction off axis or off site`)] <- NA
+# # calculate DwC min max depth
+# event_dwc_vent$minimumDepthInMeters <- event_dwc_vent$Bottom_Depth - event_dwc_vent$`Height above bottom in meters` - 5
+# event_dwc_vent$maximumDepthInMeters <- event_dwc_vent$Bottom_Depth - event_dwc_vent$`Height above bottom in meters` + 5
+# # for those off site will need tab depth_when_Direction_off for depth
+# # temporary fill with NA
+# event_dwc_vent$minimumDepthInMeters[!is.na(event_dwc_vent$`Direction off axis or off site`)] <- NA
+# event_dwc_vent$maximumDepthInMeters[!is.na(event_dwc_vent$`Direction off axis or off site`)] <- NA
 
 # in order to use destPoint function from geosphere need bearing in degrees
 df <- dplyr::tribble(
@@ -120,12 +121,28 @@ result = destPoint(p, b, d, a=6378137, f=1/298.257223563)
 lon_lat_new <- as.data.frame(result)
 # column bind then export csv to check in QGIS
 event_lon_lat_new <- bind_cols(event_dwc_vent, lon_lat_new)
+event_lon_lat_new$lon <- round(event_lon_lat_new$lon, 5)
+event_lon_lat_new$lat <- round(event_lon_lat_new$lat, 5)
 # write.csv(event_lon_lat_new, 'event_lon_lat_new.csv') # confirm use of geosphere destPoint
 
 # next when there is a value in cardinal_direction
 # need to replace position with lon_lat_new (plus a few positions from cruise report)
-# and replace depth columns with depth_when_off 
-
+# and replace depth columns with depth_when_off
+# the following works but probably could use dplyr instead
+event_lon_lat_new$decimalLongitude[!is.na(event_lon_lat_new$cardinal_direction)] <- event_lon_lat_new$lon[!is.na(event_lon_lat_new$cardinal_direction)]
+event_lon_lat_new$decimalLatitude[!is.na(event_lon_lat_new$cardinal_direction)] <- event_lon_lat_new$lat[!is.na(event_lon_lat_new$cardinal_direction)]
+# strip off trailing underscore
+depth_when_off$eventID_transposed_from_Composite_sheet <- sub("_$", "", depth_when_off$eventID_transposed_from_Composite_sheet)
+event_lon_lat_depth_new <- full_join(event_lon_lat_new, depth_when_off, by = c("eventID" = "eventID_transposed_from_Composite_sheet"))
+event_lon_lat_depth_new$Bottom_Depth[!is.na(event_lon_lat_depth_new$cardinal_direction)] <- event_lon_lat_depth_new$Bottom_Depth_Meters_manual[!is.na(event_lon_lat_depth_new$cardinal_direction)]
+# move calculation min max depth here
+# calculate DwC min max depth
+event_lon_lat_depth_new$minimumDepthInMeters <- event_lon_lat_depth_new$Bottom_Depth - event_lon_lat_depth_new$`Height above bottom in meters` - 5
+event_lon_lat_depth_new$maximumDepthInMeters <- event_lon_lat_depth_new$Bottom_Depth - event_lon_lat_depth_new$`Height above bottom in meters` + 5
+# (plus a few positions from cruise report)
+event_lon_lat_depth_new$decimalLongitude[!is.na(event_lon_lat_depth_new$lon_cruise_report)] <- event_lon_lat_depth_new$lon_cruise_report[!is.na(event_lon_lat_depth_new$lon_cruise_report)]
+event_lon_lat_depth_new$decimalLatitude[!is.na(event_lon_lat_depth_new$lat_cruise_report)] <- event_lon_lat_depth_new$lat_cruise_report[!is.na(event_lon_lat_depth_new$lat_cruise_report)]
+# write.csv(event_lon_lat_depth_new, 'event_lon_lat_depth_new.csv') # confirm in QGIS
 
 
 # initiate occurrence table
