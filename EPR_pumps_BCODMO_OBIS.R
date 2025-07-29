@@ -1,6 +1,6 @@
 #EPR_pumps_BCODMO_OBIS
 #Stace Beaulieu
-#2025-07-28
+#2025-07-29
 
 # R script to standardize EPR pumps Composite data to Darwin Core (DwC)
 # and output tables for BCO-DMO (single table with occurrence extension left and event Core right)
@@ -23,13 +23,13 @@ library(anytime) # for eventDate
 
 # first manually confirm counts in WORKING_COPY match Susan's most recent version
 # note filled blanks with zeroes for recent samples
-counts_input <- readxl::read_xlsx("Pump_near_bottom_compilation_WORKING_COPY_20250728.xlsx", sheet = "Composite_Actual_Numbers", skip = 1)
-counts_input <- select(counts_input,-"...1")
+counts_input <- readxl::read_xlsx("Pump_near_bottom_compilation_WORKING_COPY_20250729.xlsx", sheet = "Composite_Actual_Numbers", skip = 1)
+counts_input <- select(counts_input,-"...2")
 # consider stripping off underscore eventID here
 
-taxa_input <- readxl::read_xlsx("Pump_near_bottom_compilation_WORKING_COPY_20250728.xlsx", sheet = "taxa")
+taxa_input <- readxl::read_xlsx("Pump_near_bottom_compilation_WORKING_COPY_20250729.xlsx", sheet = "taxa")
 
-vent_input <- readxl::read_xlsx("Pump_near_bottom_compilation_WORKING_COPY_20250728.xlsx", sheet = "vent_site_locations", skip = 1, col_types = "text")
+vent_input <- readxl::read_xlsx("Pump_near_bottom_compilation_WORKING_COPY_20250729.xlsx", sheet = "vent_site_locations", skip = 1, col_types = "text")
 vent_input <- vent_input[,1:4] # keep only leftmost columns
 vent_input <- dplyr::slice_head(vent_input, n = 15) # keep only topmost rows
 # needed to read in as text to be able to provide lat lon to 5 decimal places
@@ -45,15 +45,15 @@ vent_input$Bottom_Depth <- as.integer(vent_input$Bottom_Depth)
 
 # will also need to read in tab depth_when_Direction_off
 # for those locations that were calculated below
-depth_when_off <- readxl::read_xlsx("Pump_near_bottom_compilation_WORKING_COPY_20250728.xlsx", sheet = "depth_when_Direction_off", skip = 3)
+depth_when_off <- readxl::read_xlsx("Pump_near_bottom_compilation_WORKING_COPY_20250729.xlsx", sheet = "depth_when_Direction_off", skip = 3)
 depth_when_off$lon_cruise_report <- round(depth_when_off$lon_cruise_report, 5)
 depth_when_off$lat_cruise_report <- round(depth_when_off$lat_cruise_report, 5)
 
 # initiate event table with top rows Composite sheet
 # ultimately for BCO-DMO join separately to counts_long using eventID
 event_metadata <- dplyr::slice_head(counts_input,n = 8)
-# strip off 2 leftmost columns
-event_metadata <- event_metadata[, -c(1, 2)] 
+# strip off leftmost column
+event_metadata <- event_metadata[, -c(1)] 
 
 # transpose for event table
 event_t <- data.table::transpose(event_metadata, keep.names = "eventID", make.names="All near bottom, including off-axis")
@@ -147,15 +147,15 @@ event_lon_lat_depth_new$decimalLatitude[!is.na(event_lon_lat_depth_new$lat_cruis
 
 # initiate occurrence table
 counts <- slice(counts_input, 10:n())
-# strip off 2nd leftmost column
-counts <- counts[, -c(2)] 
+# # strip off 2nd leftmost column if not already
+# counts <- counts[, -c(2)] 
 colnames(counts)[2] <- "verbatimIdentification"
 # need to exclude rows with totals or NAs
 counts <- counts %>%
   filter(!is.na(verbatimIdentification)) %>%
   filter(!verbatimIdentification %in% c('Totals','Totals excluding unknown 9660'))
-
 # counts should be integer
+
 # add column with row counter to be used as suffix for occurrenceID
 counts <- counts %>% mutate(vIrow = row_number())
 
@@ -190,7 +190,7 @@ occurrence_dwc <- occurrence_dwc %>%
     ))
 
 # drop vIrow and order the columns
-occurrence_dwc <- select(occurrence_dwc, -vIrow)
+occurrence_dwc <- select(occurrence_dwc, -vIrow) # still includes row_order_Composite
 col_order <- c("verbatimIdentification", "scientificName", "scientificNameID",
                "kingdom", "individualCount", "occurrenceStatus",
                "basisOfRecord", "occurrenceID", "eventID")
